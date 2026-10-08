@@ -2,7 +2,7 @@
 
 An interactive screening map of geologic hazards in Utah for people comparing places to live. Click anywhere in the state to rate that spot for faults, liquefaction, landslides and recorded earthquakes.
 
-**Live map:** https://anthonyblackham.github.io/utah-home-hazard-map/
+**Live map:** https://anthonyblackham.com/utah-home-hazard-map/
 
 ## What it shows
 

@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Utah Home Hazard Map</title>
+<meta name="description" content="Interactive Utah map of Quaternary faults, liquefaction, landslides and recorded earthquakes, with a click-anywhere site check for home buyers.">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+/* Layout: survey-sheet tool. Narrow legend/readout column on the left, the map sheet fills the rest; on phones the sheet sits above the column. */
+:root{
+  --bg:#eceeea; --panel:#f7f8f5; --card:#ffffff; --ink:#1b2a2b; --muted:#5a6a6a; --line:#cdd5d0; --accent:#0d6468; --accent-ink:#ffffff;
+  --land:#f4f2ea; --outside:#dfe4e1; --water:#b5d0dc; --water-ink:#3f7187; --urban:#e3ded2; --county:#98a4a1; --road:#b9a98e; --label:#1b2a2b; --halo:#f4f2ea;
+  --fault:#cf1030; --fault-old:#96616a; --sfr:#cf1030;
+  --liq0:#e7e1f1; --liq1:#cdbfe6; --liq2:#a88bd4; --liq3:#7b4db8; --liq4:#4b2090;
+  --lsc:#cfae7c; --lsc-h:#a9762a; --ls-a:#b3500a; --ls-d:#dc8f45;
+  --quake:#f4b90a; --quake-line:#1b2a2b; --pin:#0d6468;
+  --r0:#dfe9dc; --r0i:#234a2a; --r1:#f5e7a6; --r1i:#5c4a00; --r2:#f5c08a; --r2i:#6e3300; --r3:#eda39b; --r3i:#6f0f12; --rn:#e2e5e4; --rni:#465353;
+  --display:"Barlow Semi Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --body:"Source Sans 3","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#12181a; --panel:#182022; --card:#1f292b; --ink:#e4ebe9; --muted:#9aaaa8; --line:#324043; --accent:#5cc7c4; --accent-ink:#06292a;
+  --land:#222b2d; --outside:#141a1c; --water:#21414f; --water-ink:#7fb4cb; --urban:#2d3739; --county:#5d6b6b; --road:#6d6351; --label:#e4ebe9; --halo:#222b2d;
+  --fault:#ff5568; --fault-old:#b98790; --sfr:#ff5568;
+  --liq0:#3a3352; --liq1:#56478c; --liq2:#7c64c2; --liq3:#a98dea; --liq4:#dccbff;
+  --lsc:#8d7449; --lsc-h:#d3a152; --ls-a:#ff9b3f; --ls-d:#c47a3c;
+  --quake:#ffd23f; --quake-line:#0c1112; --pin:#5cc7c4;
+  --r0:#24382a; --r0i:#bfe3c5; --r1:#4a4212; --r1i:#f3e39a; --r2:#5a3716; --r2i:#ffcf9e; --r3:#5d2023; --r3i:#ffc2bc; --rn:#2c3638; --rni:#b6c3c1;
+  color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#12181a; --panel:#182022; --card:#1f292b; --ink:#e4ebe9; --muted:#9aaaa8; --line:#324043; --accent:#5cc7c4; --accent-ink:#06292a;
+  --land:#222b2d; --outside:#141a1c; --water:#21414f; --water-ink:#7fb4cb; --urban:#2d3739; --county:#5d6b6b; --road:#6d6351; --label:#e4ebe9; --halo:#222b2d;
+  --fault:#ff5568; --fault-old:#b98790; --sfr:#ff5568;
+  --liq0:#3a3352; --liq1:#56478c; --liq2:#7c64c2; --liq3:#a98dea; --liq4:#dccbff;
+  --lsc:#8d7449; --lsc-h:#d3a152; --ls-a:#ff9b3f; --ls-d:#c47a3c;
+  --quake:#ffd23f; --quake-line:#0c1112; --pin:#5cc7c4;
+  --r0:#24382a; --r0i:#bfe3c5; --r1:#4a4212; --r1i:#f3e39a; --r2:#5a3716; --r2i:#ffcf9e; --r3:#5d2023; --r3i:#ffc2bc; --rn:#2c3638; --rni:#b6c3c1;
+  color-scheme:dark }
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+*{box-sizing:border-box}
+.app{height:100%;display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"head map" "panel map"}
+.head{grid-area:head;background:var(--panel);padding:16px 16px 12px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.head h1{font-family:var(--display);font-weight:700;font-size:26px;line-height:1.05;margin:0;letter-spacing:.01em;text-wrap:balance}
+.head p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.panel{grid-area:panel;background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:14px 16px 24px;min-width:0;min-height:0;display:flex;flex-direction:column;gap:18px}
+.mapwrap{grid-area:map;position:relative;min-width:0;min-height:0;background:var(--outside);overflow:hidden}
+canvas#map{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;display:block}
+canvas#map:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+@media (max-width:760px){
+  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 50% minmax(0,1fr);grid-template-areas:"head" "map" "panel"}
+  .head,.panel{border-right:0}
+  .head{padding:10px 16px}
+  .head h1{font-size:21px}
+  .head p{display:none}
+}
+h2{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.find{display:flex;gap:8px}
+.find input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--card)}
+.btn{padding:8px 14px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);border-radius:4px;font-family:var(--display);font-weight:600;letter-spacing:.03em;cursor:pointer}
+.hint{font-size:13px;color:var(--muted);margin:6px 0 0;min-height:1.2em}
+
+.site{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:12px 14px}
+.site .where{font-family:var(--display);font-weight:600;font-size:19px;line-height:1.15;margin:0}
+.site .coords{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;margin:2px 0 0}
+.site .tag{display:inline-block;font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:3px;padding:0 6px;margin-bottom:6px}
+.score{display:flex;align-items:baseline;gap:8px;margin:10px 0 2px;padding-top:10px;border-top:1px solid var(--line)}
+.score b{font-family:var(--display);font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.score span{color:var(--muted);font-size:14px}
+.rows{display:flex;flex-direction:column;margin:8px 0 0}
+.row{padding:9px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
+.row h3{font-family:var(--display);font-weight:600;font-size:16px;margin:0}
+.row p{grid-column:1/-1;margin:0;font-size:14px;color:var(--ink)}
+.row p small{color:var(--muted);font-size:13px}
+.chip{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.04em;text-transform:uppercase;border-radius:3px;padding:1px 8px;white-space:nowrap}
+.c0{background:var(--r0);color:var(--r0i)} .c1{background:var(--r1);color:var(--r1i)} .c2{background:var(--r2);color:var(--r2i)} .c3{background:var(--r3);color:var(--r3i)} .cn{background:var(--rn);color:var(--rni)}
+.links{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:14px}
+a{color:var(--accent)}
+
+.layers{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;min-width:0}
+.layers legend{padding:0}
+.lay{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;align-items:start}
+.lay input[type=checkbox]{width:17px;height:17px;margin:2px 0 0;accent-color:var(--accent)}
+.lay label{font-weight:600;cursor:pointer}
+.lay .sub{grid-column:2;font-size:13px;color:var(--muted)}
+.key{grid-column:2;display:flex;flex-wrap:wrap;gap:3px 12px;font-size:13px;color:var(--muted);margin-top:2px}
+.key span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.sw{width:14px;height:11px;border-radius:2px;display:inline-block;border:1px solid var(--line)}
+.ln{width:20px;height:0;border-top:2.5px solid var(--fault);display:inline-block}
+.ln.mid{border-top-width:1.5px} .ln.old{border-top:1.5px dashed var(--fault-old)}
+.dot{border-radius:50%;background:var(--quake);border:1px solid var(--quake-line);display:inline-block}
+.lay select{padding:2px 6px;border:1px solid var(--line);border-radius:4px;background:var(--card);font-size:13px}
+details{border-top:1px solid var(--line);padding-top:10px}
+details summary{font-family:var(--display);font-weight:600;font-size:16px;cursor:pointer}
+details p,details li{font-size:14px;max-width:62ch}
+details ul{padding-left:18px;margin:8px 0}
+
+.ctl{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--card)}
+.ctl button{width:36px;height:36px;border:0;border-bottom:1px solid var(--line);background:var(--card);font-size:19px;line-height:1;cursor:pointer;font-family:var(--display);font-weight:600}
+.ctl button:last-child{border-bottom:0;font-size:12px;letter-spacing:.04em}
+.scale{position:absolute;left:12px;bottom:10px;font-size:12px;font-family:var(--display);font-weight:600;color:var(--ink);pointer-events:none;display:flex;flex-direction:column;gap:2px}
+.scale i{display:block;height:6px;border:1.5px solid var(--ink);border-top:0}
+.credit{position:absolute;right:0;bottom:0;font-size:11px;color:var(--muted);background:var(--panel);padding:1px 8px;border-top-left-radius:4px;pointer-events:none;max-width:70%}
+.veil{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--outside);font-family:var(--display);font-size:18px;color:var(--muted);padding:16px;text-align:center}
+</style>
+
+<div class="app">
+  <header class="head">
+    <h1>Utah Home Hazard Map</h1>
+    <p>Check a spot against mapped faults, liquefaction, landslides and recorded earthquakes before you buy or build.</p>
+  </header>
+
+  <main class="mapwrap">
+    <canvas id="map" tabindex="0" aria-label="Hazard map of Utah. Click or tap to check a location. Arrow keys pan, plus and minus zoom, Enter checks the map center."></canvas>
+    <div class="ctl">
+      <button type="button" id="zin" aria-label="Zoom in">+</button>
+      <button type="button" id="zout" aria-label="Zoom out">&minus;</button>
+      <button type="button" id="zhome" aria-label="Show all of Utah">UT</button>
+    </div>
+    <div class="scale" id="scale" aria-hidden="true"><span id="scaletxt"></span><i id="scalebar"></i></div>
+    <div class="credit">Data: Utah Geological Survey, USGS, UGRC</div>
+    <div class="veil" id="veil">Loading Utah Geological Survey hazard data…</div>
+  </main>
+
+  <div class="panel">
+    <section>
+      <h2>Find a place</h2>
+      <form class="find" id="find">
+        <input id="place" list="places" placeholder="City, county, or 40.76, -111.89" autocomplete="off" aria-label="City, county, or latitude and longitude">
+        <datalist id="places"></datalist>
+        <button class="btn" type="submit">Go</button>
+      </form>
+      <p class="hint" id="findmsg">Or click anywhere on the map to check that spot.</p>
+    </section>
+
+    <section aria-live="polite">
+      <h2>Site check</h2>
+      <div class="site" id="site"><p class="where">Loading…</p></div>
+    </section>
+
+    <fieldset class="layers">
+      <legend><h2>Map layers</h2></legend>
+
+      <div class="lay">
+        <input type="checkbox" id="l-faults" checked>
+        <label for="l-faults">Quaternary faults</label>
+        <div class="key"><span><i class="ln"></i>moved in last 15,000 yr</span><span><i class="ln mid"></i>last 130,000 yr</span><span><i class="ln old"></i>older or undated</span></div>
+      </div>
+      <div class="lay">
+        <input type="checkbox" id="l-sfr" checked>
+        <label for="l-sfr">Surface-fault-rupture study zones</label>
+        <div class="sub">Where the state recommends a fault study before building.</div>
+      </div>
+      <div class="lay">
+        <input type="checkbox" id="l-liq" checked>
+        <label for="l-liq">Liquefaction</label>
+        <div class="key"><span><i class="sw" style="background:var(--liq0)"></i>very low</span><span><i class="sw" style="background:var(--liq1)"></i>low</span><span><i class="sw" style="background:var(--liq2)"></i>moderate</span><span><i class="sw" style="background:var(--liq3)"></i>high</span><span><i class="sw" style="background:var(--liq4)"></i>very high</span></div>
+        <div class="sub">Detailed study areas plus the 1990s Wasatch Front regional maps. No color means not studied.</div>
+      </div>
+      <div class="lay">
+        <input type="checkbox" id="l-ls" checked>
+        <label for="l-ls">Landslides, detailed inventory</label>
+        <div class="key"><span><i class="sw" style="background:var(--ls-a)"></i>active or historical</span><span><i class="sw" style="background:var(--ls-d)"></i>dormant or undetermined</span></div>
+      </div>
+      <div class="lay">
+        <input type="checkbox" id="l-legacy" checked>
+        <label for="l-legacy">Landslides, statewide compilation</label>
+        <div class="key"><span><i class="sw" style="background:var(--lsc-h)"></i>historical movement</span><span><i class="sw" style="background:var(--lsc)"></i>prehistoric or undated</span></div>
+      </div>
+      <div class="lay">
+        <input type="checkbox" id="l-quakes" checked>
+        <label for="l-quakes">Earthquakes since 1990</label>
+        <div class="key"><span><i class="dot" style="width:6px;height:6px"></i>M2.5</span><span><i class="dot" style="width:11px;height:11px"></i>M4</span><span><i class="dot" style="width:17px;height:17px"></i>M5.5+</span>
+          <span><label for="minmag" style="font-weight:400">Show</label> <select id="minmag"><option value="2.5">M2.5 and up</option><option value="3">M3 and up</option><option value="4">M4 and up</option></select></span></div>
+      </div>
+      <div class="lay">
+        <input type="checkbox" id="l-grid">
+        <label for="l-grid">Screening index <span id="gridmsg" style="font-weight:400;color:var(--muted)"></span></label>
+        <div class="sub">Adds the four ratings together for every 1 km square, 0 to 12.</div>
+        <div class="key"><span><i class="sw" style="background:#dfeac4"></i>0–1</span><span><i class="sw" style="background:#f6dd8a"></i>2–3</span><span><i class="sw" style="background:#f2a65a"></i>4–5</span><span><i class="sw" style="background:#dd5a3b"></i>6–7</span><span><i class="sw" style="background:#8e1f3f"></i>8 or more</span></div>
+      </div>
+    </fieldset>
+
+    <details>
+      <summary>How the ratings work</summary>
+      <ul>
+        <li><b>Faults.</b> High inside a surface-fault-rupture study zone or within 150 m (500 ft) of a mapped trace. Elevated within 1 km, some within 5 km. Faults with no movement in the last 130,000 years count one step lower.</li>
+        <li><b>Liquefaction.</b> The mapped class at the spot: high and very high rate High, moderate rates Elevated, low rates Some. A detailed study wins over the older regional map where both exist, and a range such as “moderate to high” counts as its upper end.</li>
+        <li><b>Landslides.</b> High inside a mapped landslide, elevated within 300 m, some within 1 km.</li>
+        <li><b>Earthquakes.</b> Counts recorded M2.5+ events within 25 km (15.5 mi) since 1990. High with 40 or more, or any M5+. Elevated with 15 or more, or any M4+. Some with 4 or more.</li>
+      </ul>
+      <p>The screening index adds the four ratings. Unmapped liquefaction adds nothing, so a low index in an unmapped area tells you less.</p>
+    </details>
+    <details>
+      <summary>What this map cannot tell you</summary>
+      <p>This is a first screen for comparing areas. It does not replace a site-specific geotechnical study, and the Utah Geological Survey says its hazard maps should not be used that way.</p>
+      <ul>
+        <li>Blank does not mean safe. Liquefaction is mapped for the Wasatch Front valleys, Tooele Valley, Cache Valley and a few study areas such as St. George and Zion. Detailed landslide mapping covers only parts of the state. Everywhere else is unstudied.</li>
+        <li>Strong shaking reaches far beyond the fault that causes it. A Wasatch fault earthquake would shake every valley along the Wasatch Front, whatever the distance rating says here.</li>
+        <li>Recorded earthquakes show where the ground has been active since 1990. Coal-mining areas in Carbon and Emery counties include mining-related events.</li>
+        <li>Flooding, debris flows, rockfall, radon, problem soils and wildfire are not included.</li>
+        <li>Shapes are simplified for the web by roughly 10 to 30 m. Do not read them to the lot line.</li>
+      </ul>
+    </details>
+    <details>
+      <summary>Sources</summary>
+      <ul>
+        <li>Utah Geological Survey: Quaternary Fault and Fold Database; Utah Geologic Hazards database (liquefaction susceptibility, surface-fault-rupture special study zones, landslide inventory, legacy landslide compilation); Wasatch Front liquefaction potential maps (Contract Reports 94-1 to 94-5 and Special Study 96, 1994–1999). <a href="https://geology.utah.gov/apps/hazards/" target="_blank" rel="noopener">Utah Geologic Hazards Portal</a></li>
+        <li>USGS earthquake catalog (ComCat), M2.5+ since 1990. <a href="https://earthquake.usgs.gov/earthquakes/search/" target="_blank" rel="noopener">Search the catalog</a></li>
+        <li>Utah Geospatial Resource Center: county and municipal boundaries, lakes, highways.</li>
+      </ul>
+      <p id="fetched"></p>
+    </details>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var D2R=Math.PI/180, MPD=111320;
+function mx(lon){return (lon+180)/360}
+function my(lat){var s=Math.sin(lat*D2R);return 0.5-Math.log((1+s)/(1-s))/(4*Math.PI)}
+function ilat(y){return Math.atan(Math.sinh(Math.PI*(1-2*y)))/D2R}
+function ilon(x){return x*360-180}
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+var UT={w:-114.06,e:-109.03,s:36.99,n:42.01};
+var cv=$('map'), ctx=cv.getContext('2d'), buf=document.createElement('canvas'), bctx=buf.getContext('2d');
+var W=0,H=0,dpr=1, view={cx:mx(-111.6),cy:my(39.5),z:6.5}, drawn=null, lastMs=0, LY=null, pin=null, isExample=false;
+var show={faults:true,sfr:true,liq:true,ls:true,legacy:true,quakes:true,grid:false}, minMag=2.5;
+var C={};
+
+function readTheme(){
+  var cs=getComputedStyle(document.documentElement);
+  ['land','outside','water','water-ink','urban','county','road','label','halo','fault','fault-old','sfr','liq0','liq1','liq2','liq3','liq4','lsc','lsc-h','ls-a','ls-d','quake','quake-line','pin'].forEach(function(k){C[k]=cs.getPropertyValue('--'+k).trim()});
+}
+
+/* ---------- data ---------- */
+function decode(L,point){
+  var k=Math.pow(10,-L.q), feats=[], names=L.fields;
+  for(var i=0;i<L.rows.length;i++){
+    var row=L.rows[i], p={};
+    for(var a=0;a<names.length;a++){var d=L.dict[names[a]];p[names[a]]=d?d[row[a]]:row[a]}
+    var g=L.geom[i];
+    if(point){var lo=g[0]*k,la=g[1]*k;feats.push({p:p,lon:lo,lat:la,x:mx(lo),y:my(la),w:lo,e:lo,s:la,n:la});continue}
+    var parts=[],w=1e9,s=1e9,e=-1e9,n=-1e9;
+    for(var q=0;q<g.length;q++){
+      var src=g[q],m=src.length/2,ll=new Float64Array(src.length),xy=new Float64Array(src.length),x=0,y=0;
+      for(var j=0;j<m;j++){x+=src[2*j];y+=src[2*j+1];var lon=x*k,lat=y*k;ll[2*j]=lon;ll[2*j+1]=lat;xy[2*j]=mx(lon);xy[2*j+1]=my(lat);
+        if(lon<w)w=lon;if(lon>e)e=lon;if(lat<s)s=lat;if(lat>n)n=lat}
+      parts.push({ll:ll,xy:xy});
+    }
+    feats.push({p:p,parts:parts,w:w,s:s,e:e,n:n,x0:mx(w),x1:mx(e),y0:my(n),y1:my(s),_s:0});
+  }
+  return feats;
+}
+function Grid(c){this.c=c;this.m=new Map()}
+Grid.prototype.add=function(f,id){var c=this.c;for(var x=Math.floor(f.w/c);x<=Math.floor(f.e/c);x++)for(var y=Math.floor(f.s/c);y<=Math.floor(f.n/c);y++){var k=x*100000+y,a=this.m.get(k);if(!a)this.m.set(k,a=[]);a.push(id)}};
+Grid.prototype.near=function(lon,lat,r,out){var dy=r/MPD,dx=r/(MPD*Math.cos(lat*D2R)),c=this.c;out.length=0;
+  for(var x=Math.floor((lon-dx)/c);x<=Math.floor((lon+dx)/c);x++)for(var y=Math.floor((lat-dy)/c);y<=Math.floor((lat+dy)/c);y++){var a=this.m.get(x*100000+y);if(a)for(var i=0;i<a.length;i++)out.push(a[i])}
+  return out};
+function index(feats,c){var g=new Grid(c);for(var i=0;i<feats.length;i++)g.add(feats[i],feats[i]);return g}
+
+/* ---------- geometry queries ---------- */
+function pip(f,lon,lat){
+  if(lon<f.w||lon>f.e||lat<f.s||lat>f.n)return false;
+  var c=false;
+  for(var q=0;q<f.parts.length;q++){var a=f.parts[q].ll,n=a.length;
+    for(var i=0,j=n-2;i<n;j=i,i+=2){var yi=a[i+1],yj=a[j+1];
+      if((yi>lat)!==(yj>lat)&&lon<(a[j]-a[i])*(lat-yi)/(yj-yi)+a[i])c=!c}}
+  return c;
+}
+function featDist(f,lon,lat,kx,best){
+  var bx=Math.max(f.w-lon,0,lon-f.e)*kx,by=Math.max(f.s-lat,0,lat-f.n)*MPD;
+  if(bx*bx+by*by>=best*best)return best;
+  var d2=best*best;
+  for(var q=0;q<f.parts.length;q++){var a=f.parts[q].ll;
+    for(var i=0;i+3<a.length;i+=2){
+      var ax=(a[i]-lon)*kx,ay=(a[i+1]-lat)*MPD,dx=(a[i+2]-lon)*kx-ax,dy=(a[i+3]-lat)*MPD-ay,l=dx*dx+dy*dy,t=l?-(ax*dx+ay*dy)/l:0;
+      t=t<0?0:t>1?1:t;var x=ax+t*dx,y=ay+t*dy,s=x*x+y*y;if(s<d2)d2=s}}
+  return Math.sqrt(d2);
+}
+var tmp=[], stamp=0;
+var LIQ_RANK={VLlqs:0,Llqs:1,Mlqs:2,Hlqs:3,VHlqs:4}, LIQ_RATE=[0,1,2,3,3];
+function rateDist(d){return d<=150?3:d<=1000?2:d<=5000?1:0}
+function rateQuake(n,mx_){return (mx_>=5||n>=40)?3:(mx_>=4||n>=15)?2:n>=4?1:0}
+
+/* fast=true is used for the 1 km screening grid: capped search radii, no detail. */
+function assess(lon,lat,fast){
+  var kx=MPD*Math.cos(lat*D2R), i, f, d, list;
+  stamp++;
+  var dY=fast?5001:1e9,dO=fast?5001:1e9,fY=null,fO=null;
+  list=fast?LY.ixFaults.near(lon,lat,5000,tmp):LY.faults;
+  for(i=0;i<list.length;i++){f=list[i];if(f._s===stamp)continue;f._s=stamp;
+    if(f.young){d=featDist(f,lon,lat,kx,dY);if(d<dY){dY=d;fY=f}}else{d=featDist(f,lon,lat,kx,dO);if(d<dO){dO=d;fO=f}}}
+  var inSfr=false;
+  list=fast?LY.ixSfr.near(lon,lat,1,tmp):LY.sfr;
+  for(i=0;i<list.length&&!inSfr;i++)if(pip(list[i],lon,lat))inSfr=true;
+  var rF=Math.max(rateDist(dY),rateDist(dO)-1,inSfr?3:0,0);
+
+  var liq=-1,fQ=null,lr=-1,fR=null;
+  list=LY.ixLiq.near(lon,lat,1,tmp);
+  for(i=0;i<list.length;i++){f=list[i];
+    if(f.detail){if(f.rank>liq&&pip(f,lon,lat)){liq=f.rank;fQ=f}}else if(f.rank>lr&&pip(f,lon,lat)){lr=f.rank;fR=f}}
+  if(liq<0){liq=lr;fQ=fR}
+  var rQ=liq<0?null:LIQ_RATE[liq];
+
+  var dL=fast?1001:1e9,fL=null,inside=[],nearCount=0,lim;
+  list=fast?LY.ixSlides.near(lon,lat,1000,tmp):LY.slides;
+  for(i=0;i<list.length;i++){f=list[i];if(f._s===stamp)continue;f._s=stamp;
+    if(pip(f,lon,lat)){dL=0;if(!inside.length)fL=f;inside.push(f);nearCount++;if(fast)break;continue}
+    lim=fast?dL:Math.max(dL,1609.34);d=featDist(f,lon,lat,kx,lim);
+    if(d<1609.34)nearCount++;
+    if(d<dL){dL=d;fL=f}}
+  var rL=dL===0?3:dL<=300?2:dL<=1000?1:0;
+
+  var n=0,big=null,mxm=0;
+  list=fast?LY.ixQuakes.near(lon,lat,25000,tmp):LY.quakes;
+  for(i=0;i<list.length;i++){f=list[i];var qx=(f.lon-lon)*kx,qy=(f.lat-lat)*MPD;
+    if(qx*qx+qy*qy<=625e6){n++;if(f.p.mag>mxm){mxm=f.p.mag;big=f}}}
+  var rE=rateQuake(n,mxm);
+  return {rF:rF,rQ:rQ,rL:rL,rE:rE,total:rF+(rQ||0)+rL+rE,dY:dY,fY:fY,dO:dO,fO:fO,inSfr:inSfr,liq:liq,fQ:fQ,dL:dL,fL:fL,inside:inside,nearCount:nearCount,n:n,big:big};
+}
+function countyAt(lon,lat){for(var i=0;i<LY.counties.length;i++)if(pip(LY.counties[i],lon,lat))return LY.counties[i];return null}
+function muniAt(lon,lat){for(var i=0;i<LY.muni.length;i++)if(pip(LY.muni[i],lon,lat))return LY.muni[i];return null}
+
+/* ---------- drawing ---------- */
+function resize(){
+  var r=cv.getBoundingClientRect();dpr=Math.min(window.devicePixelRatio||1,2);
+  W=Math.max(50,Math.round(r.width));H=Math.max(50,Math.round(r.height));
+  cv.width=buf.width=Math.round(W*dpr);cv.height=buf.height=Math.round(H*dpr);
+}
+function scaleOf(z){return 256*Math.pow(2,z)}
+function fitUtah(){
+  var dx=mx(UT.e)-mx(UT.w),dy=my(UT.s)-my(UT.n);
+  view.z=Math.log(Math.min((W-24)/dx,(H-24)/dy)/256)/Math.LN2;view.cx=(mx(UT.e)+mx(UT.w))/2;view.cy=(my(UT.s)+my(UT.n))/2;
+}
+function clampView(){
+  view.z=Math.max(5.2,Math.min(15.5,view.z));
+  view.cx=Math.max(mx(UT.w-1),Math.min(mx(UT.e+1),view.cx));view.cy=Math.max(my(UT.n+1),Math.min(my(UT.s-1),view.cy));
+}
+function pathFeats(c,feats,sc,ox,oy,vx0,vy0,vx1,vy1,close,dots){
+  for(var i=0;i<feats.length;i++){var f=feats[i];
+    if(f.x1<vx0||f.x0>vx1||f.y1<vy0||f.y0>vy1)continue;
+    var w=(f.x1-f.x0)*sc,h=(f.y1-f.y0)*sc;
+    if(w<1.6&&h<1.6){if(dots)c.rect(f.x0*sc+ox-0.2,f.y0*sc+oy-0.2,1.6,1.6);else{c.moveTo(f.x0*sc+ox,f.y0*sc+oy);c.lineTo(f.x1*sc+ox+0.6,f.y1*sc+oy+0.6)}continue}
+    for(var q=0;q<f.parts.length;q++){var a=f.parts[q].xy,n=a.length,px=a[0]*sc+ox,py=a[1]*sc+oy,lx=px,ly=py;
+      c.moveTo(px,py);
+      for(var j=2;j<n;j+=2){px=a[j]*sc+ox;py=a[j+1]*sc+oy;var ex=px-lx,ey=py-ly;
+        if(ex*ex+ey*ey<0.36&&j<n-2)continue;c.lineTo(px,py);lx=px;ly=py}
+      if(close)c.closePath();}
+  }
+}
+function render(){
+  if(!LY)return;
+  var t0=performance.now(), c=bctx, sc=scaleOf(view.z), ox=W/2-view.cx*sc, oy=H/2-view.cy*sc;
+  var vx0=view.cx-W/2/sc,vx1=view.cx+W/2/sc,vy0=view.cy-H/2/sc,vy1=view.cy+H/2/sc, z=view.z;
+  c.setTransform(dpr,0,0,dpr,0,0);c.lineJoin='round';c.lineCap='round';c.setLineDash([]);c.globalAlpha=1;
+  c.fillStyle=C.outside;c.fillRect(0,0,W,H);
+  function fill(feats,color,alpha){c.beginPath();pathFeats(c,feats,sc,ox,oy,vx0,vy0,vx1,vy1,true,true);c.globalAlpha=alpha;c.fillStyle=color;c.fill('evenodd');c.globalAlpha=1}
+  function line(feats,color,width,dash,alpha){c.beginPath();pathFeats(c,feats,sc,ox,oy,vx0,vy0,vx1,vy1,false,false);c.setLineDash(dash||[]);c.globalAlpha=alpha||1;c.strokeStyle=color;c.lineWidth=width;c.stroke();c.setLineDash([]);c.globalAlpha=1}
+  fill(LY.counties,C.land,1);
+  fill(LY.muni,C.urban,1);
+  fill(LY.lakes,C.water,1);
+  if(show.grid&&gridCv){c.imageSmoothingEnabled=false;c.globalAlpha=0.82;
+    c.drawImage(gridCv,mx(UT.w)*sc+ox,my(UT.n)*sc+oy,(mx(UT.e)-mx(UT.w))*sc,(my(UT.s)-my(UT.n))*sc);c.globalAlpha=1}
+  if(show.liq){var k;for(k=0;k<5;k++)fill(LY.liqReg[k],C['liq'+k],0.8);for(k=0;k<5;k++)fill(LY.liqDet[k],C['liq'+k],0.9)}
+  if(show.legacy){fill(LY.legacyOld,C.lsc,0.8);fill(LY.legacyHist,C['lsc-h'],0.85)}
+  if(show.ls){fill(LY.lsDorm,C['ls-d'],0.85);fill(LY.lsAct,C['ls-a'],0.9)}
+  if(show.sfr){fill(LY.sfr,C.sfr,0.13);if(z>9)line(LY.sfr,C.sfr,0.8,[3,3],0.7)}
+  line(LY.roads,C.road,z<8?1.1:1.8);
+  c.beginPath();pathFeats(c,LY.counties,sc,ox,oy,vx0,vy0,vx1,vy1,true,false);c.strokeStyle=C.county;c.lineWidth=z<8?0.6:0.9;c.stroke();
+  if(show.faults){var fw=z<8?0.75:z<11?1:1.3;
+    line(LY.faultOld,C['fault-old'],1.1*fw,[4,3]);line(LY.faultMid,C.fault,1.5*fw,null,0.9);line(LY.faultNew,C.fault,2.4*fw)}
+  if(show.quakes){var zf=Math.max(0.5,Math.min(2.2,0.8+(z-6.5)*0.22));
+    c.fillStyle=C.quake;c.strokeStyle=C['quake-line'];c.lineWidth=0.7;
+    for(var i=0;i<LY.quakes.length;i++){var q=LY.quakes[i];if(q.p.mag<minMag||q.x<vx0||q.x>vx1||q.y<vy0||q.y>vy1)continue;
+      var r=(1.6+(q.p.mag-2.5)*2.1)*zf;c.beginPath();c.arc(q.x*sc+ox,q.y*sc+oy,r,0,6.2832);c.globalAlpha=0.72;c.fill();c.globalAlpha=0.9;c.stroke()}
+    c.globalAlpha=1}
+  labels(c,sc,ox,oy,z);
+  if(pin){var px=mx(pin.lon)*sc+ox,py=my(pin.lat)*sc+oy,rr=25000/(40075016.686*Math.cos(pin.lat*D2R))*sc;
+    c.beginPath();c.arc(px,py,rr,0,6.2832);c.setLineDash([5,5]);c.strokeStyle=C.pin;c.lineWidth=1.2;c.globalAlpha=0.8;c.stroke();c.setLineDash([]);c.globalAlpha=1;
+    c.beginPath();c.arc(px,py,7,0,6.2832);c.fillStyle=C.halo;c.fill();c.lineWidth=3;c.strokeStyle=C.pin;c.stroke();
+    c.beginPath();c.arc(px,py,2,0,6.2832);c.fillStyle=C.pin;c.fill()}
+  drawn={cx:view.cx,cy:view.cy,z:view.z};
+  ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(buf,0,0);
+  lastMs=performance.now()-t0;
+  updateScale();
+}
+var WATER=[['Great Salt Lake',-112.55,41.17],['Utah Lake',-111.8,40.21],['Bear Lake',-111.33,41.95],['Lake Powell',-110.72,37.28]];
+function labels(c,sc,ox,oy,z){
+  var boxes=[];
+  function put(text,x,y,font,color,italic){
+    c.font=font;var w=c.measureText(text).width,h=13,b=[x-w/2-3,y-h/2-2,x+w/2+3,y+h/2+2];
+    if(b[2]<0||b[0]>W||b[3]<0||b[1]>H)return;
+    for(var i=0;i<boxes.length;i++){var o=boxes[i];if(b[0]<o[2]&&b[2]>o[0]&&b[1]<o[3]&&b[3]>o[1])return}
+    boxes.push(b);c.textAlign='center';c.textBaseline='middle';c.lineWidth=3;c.strokeStyle=C.halo;c.globalAlpha=0.85;c.strokeText(text,x,y);c.globalAlpha=1;c.fillStyle=color;c.fillText(text,x,y);
+  }
+  var fam='"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif', popMin=z<7?80000:z<8?40000:z<9?15000:z<10?4000:0;
+  for(var i=0;i<LY.muniSorted.length;i++){var m=LY.muniSorted[i];if(m.p.pop<popMin)break;
+    put(m.p.name,(m.x0+m.x1)/2*sc+ox,(m.y0+m.y1)/2*sc+oy,'600 '+(m.p.pop>90000?14:12.5)+'px '+fam,C.label)}
+  for(i=0;i<WATER.length;i++)put(WATER[i][0],mx(WATER[i][1])*sc+ox,my(WATER[i][2])*sc+oy,'italic 500 12px '+fam,C['water-ink']);
+  if(z<10.5)for(i=0;i<LY.counties.length;i++){var k=LY.counties[i];
+    put(k.p.name.toUpperCase()+' CO.',(k.x0+k.x1)/2*sc+ox,(k.y0+k.y1)/2*sc+oy,'500 11px '+fam,C.county)}
+}
+function quick(){
+  if(!drawn)return;
+  var s=Math.pow(2,view.z-drawn.z), sc=scaleOf(view.z);
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=C.outside;ctx.fillRect(0,0,cv.width,cv.height);
+  var tx=((drawn.cx-view.cx)*sc+W/2)*dpr,ty=((drawn.cy-view.cy)*sc+H/2)*dpr;
+  ctx.setTransform(s,0,0,s,tx,ty);ctx.drawImage(buf,-cv.width/2,-cv.height/2);ctx.setTransform(1,0,0,1,0,0);
+}
+var raf=0,settle=0;
+function changed(){
+  clampView();
+  if(raf)return;
+  raf=requestAnimationFrame(function(){raf=0;
+    if(lastMs<22){render()}else{quick();clearTimeout(settle);settle=setTimeout(render,110)}});
+}
+function updateScale(){
+  var lat=ilat(view.cy), mpp=40075016.686*Math.cos(lat*D2R)/scaleOf(view.z), miles=mpp*110/1609.34;
+  var steps=[0.1,0.25,0.5,1,2,5,10,25,50,100,200],pick=steps[0];
+  for(var i=0;i<steps.length;i++)if(steps[i]<=miles)pick=steps[i];
+  $('scalebar').style.width=Math.round(pick*1609.34/mpp)+'px';
+  $('scaletxt').textContent=pick+' mi ('+(pick*1.60934<10?(pick*1.60934).toFixed(1):Math.round(pick*1.60934))+' km)';
+}
+
+/* ---------- screening grid ---------- */
+var gridCv=null, gridBusy=false;
+var GRID_COL=[[223,234,196],[246,221,138],[242,166,90],[221,90,59],[142,31,63]];
+function buildGrid(){
+  if(gridCv||gridBusy)return;gridBusy=true;
+  var cols=420,x0=mx(UT.w),x1=mx(UT.e),y0=my(UT.n),y1=my(UT.s),rows=Math.round(cols*(y1-y0)/(x1-x0));
+  var cnv=document.createElement('canvas');cnv.width=cols;cnv.height=rows;var g=cnv.getContext('2d'),img=g.createImageData(cols,rows),r=0;
+  var ixC=index(LY.counties,0.25),t=[];
+  function step(){
+    var end=Math.min(rows,r+10);
+    for(;r<end;r++){var lat=ilat(y0+(r+0.5)/rows*(y1-y0));
+      for(var cx=0;cx<cols;cx++){var lon=ilon(x0+(cx+0.5)/cols*(x1-x0)),inside=false,cand=ixC.near(lon,lat,1,t);
+        for(var i=0;i<cand.length&&!inside;i++)if(pip(cand[i],lon,lat))inside=true;
+        if(!inside)continue;
+        var a=assess(lon,lat,true),b=Math.min(4,a.total>>1),col=GRID_COL[b],o=(r*cols+cx)*4;
+        img.data[o]=col[0];img.data[o+1]=col[1];img.data[o+2]=col[2];img.data[o+3]=255}}
+    if(r<rows){$('gridmsg').textContent='(computing '+Math.round(r/rows*100)+'%)';setTimeout(step,0)}
+    else{g.putImageData(img,0,0);gridCv=cnv;gridBusy=false;$('gridmsg').textContent='';render()}
+  }
+  step();
+}
+
+/* ---------- site readout ---------- */
+function miles(m){var mi=m/1609.34;if(m<400)return Math.round(m/0.3048/10)*10+' ft ('+Math.round(m)+' m)';return (mi<10?mi.toFixed(1):Math.round(mi))+' mi ('+(m/1000<10?(m/1000).toFixed(1):Math.round(m/1000))+' km)'}
+var AGE={'<150':'ruptured in historical time','<15,000':'moved in the last 15,000 years','<130,000':'moved in the last 130,000 years','<750,000':'moved in the last 750,000 years','<2,600,000':'moved in the last 2.6 million years','undetermined':'age of last movement undetermined'};
+var CHIP=['Low','Some','Elevated','High'];
+function chip(r){return r===null?'<span class="chip cn">Not mapped</span>':'<span class="chip c'+r+'">'+CHIP[r]+'</span>'}
+function faultLine(f,d){var s=esc(f.p.label)+', '+miles(d)+' away; '+AGE[f.p.age];if(f.p.slip!=='unspecified')s+=', slip rate '+esc(f.p.slip);return s+'.'}
+function setPin(lon,lat,example){
+  pin={lon:lon,lat:lat};isExample=!!example;
+  var a=assess(lon,lat,false), co=countyAt(lon,lat), mu=muniAt(lon,lat), h='';
+  if(!co){$('site').innerHTML='<p class="where">Outside Utah</p><p class="coords">'+lat.toFixed(5)+', '+lon.toFixed(5)+'</p><p style="margin:8px 0 0">The hazard data covers Utah only. Click a spot inside the state.</p>';render();save();return}
+  if(example)h+='<span class="tag">Example location</span>';
+  h+='<p class="where">'+(mu?esc(mu.p.name):'Unincorporated '+esc(co.p.name)+' County')+'</p>';
+  h+='<p class="coords">'+lat.toFixed(5)+', '+lon.toFixed(5)+(mu?' · '+esc(co.p.name)+' County':'')+'</p>';
+  h+='<div class="score"><b>'+a.total+'</b><span>of 12 on the screening index'+(a.rQ===null?', liquefaction not counted':'')+'</span></div><div class="rows">';
+
+  var t='';
+  if(a.inSfr)t+='Inside a surface-fault-rupture special study zone. ';
+  var first=a.fY&&(!a.fO||a.dY<=a.dO)?[a.fY,a.dY]:[a.fO,a.dO], other=first[0]===a.fY?[a.fO,a.dO]:[a.fY,a.dY];
+  if(first[0])t+='Nearest mapped fault: '+faultLine(first[0],first[1]);
+  if(first[0]===a.fO&&a.fY&&a.dY<50000)t+=' <small>Nearest fault active in the last 130,000 years: '+faultLine(a.fY,a.dY)+'</small>';
+  h+='<div class="row"><h3>Faults</h3>'+chip(a.rF)+'<p>'+t+'</p></div>';
+
+  if(a.liq<0)t='No liquefaction study covers this spot. That is not the same as low risk. Low, wet, sandy ground near lakes and rivers is the usual concern.';
+  else t=esc(a.fQ.p.label)+(a.fQ.detail?' susceptibility in a Utah Geological Survey detailed hazard study.':' liquefaction potential on the 1990s Wasatch Front regional map.');
+  h+='<div class="row"><h3>Liquefaction</h3>'+chip(a.rQ)+'<p>'+t+'</p></div>';
+
+  if(a.inside.length){var f=a.inside[0],d=[];
+    if(f.kind==='ls'){d.push(esc(f.p.type.toLowerCase()));d.push(esc(f.p.activity.toLowerCase()));if(f.p.years)d.push('moved '+esc(f.p.years))}
+    else{d.push(esc(f.p.move||f.p.unit));if(f.p.hist)d.push('historical movement recorded')}
+    t='Inside a mapped landslide ('+d.join(', ')+').'}
+  else if(a.fL)t='Nearest mapped landslide is '+miles(a.dL)+' away.';
+  else t='No mapped landslides found.';
+  if(a.nearCount>(a.inside.length?1:0))t+=' '+a.nearCount+' mapped within 1 mile.';
+  h+='<div class="row"><h3>Landslides</h3>'+chip(a.rL)+'<p>'+t+'</p></div>';
+
+  if(a.n){var dt=new Date(a.big.p.t*1000);t=a.n+' recorded M2.5+ within 15.5 mi (25 km) since 1990. Largest M'+a.big.p.mag.toFixed(1)+', '+dt.getUTCFullYear()+(a.big.p.place?', '+esc(a.big.p.place):'')+'.'}
+  else t='None recorded at M2.5+ within 15.5 mi (25 km) since 1990.';
+  h+='<div class="row"><h3>Earthquakes</h3>'+chip(a.rE)+'<p>'+t+'</p></div></div>';
+  h+='<div class="links"><a target="_blank" rel="noopener" href="https://www.google.com/maps/@?api=1&amp;map_action=map&amp;basemap=satellite&amp;zoom=16&amp;center='+lat.toFixed(5)+'%2C'+lon.toFixed(5)+'">Satellite view</a><a target="_blank" rel="noopener" href="https://geology.utah.gov/apps/hazards/">Utah Geologic Hazards Portal</a></div>';
+  $('site').innerHTML=h;render();save();
+}
+
+/* ---------- interaction ---------- */
+function toLL(px,py){var sc=scaleOf(view.z);return [ilon(view.cx+(px-W/2)/sc),ilat(view.cy+(py-H/2)/sc)]}
+function zoomAt(px,py,dz){
+  var sc=scaleOf(view.z),wx=view.cx+(px-W/2)/sc,wy=view.cy+(py-H/2)/sc;
+  view.z=Math.max(5.2,Math.min(15.5,view.z+dz));sc=scaleOf(view.z);view.cx=wx-(px-W/2)/sc;view.cy=wy-(py-H/2)/sc;changed();
+}
+var ptr=new Map(), moved=false, downT=0, pinchD=0;
+function pos(e){var r=cv.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]}
+cv.addEventListener('pointerdown',function(e){cv.setPointerCapture(e.pointerId);ptr.set(e.pointerId,pos(e));if(ptr.size===1){moved=false;downT=Date.now()}else{moved=true;pinchD=0}});
+cv.addEventListener('pointermove',function(e){
+  if(!ptr.has(e.pointerId))return;var p=pos(e),o=ptr.get(e.pointerId);
+  if(ptr.size===1){var dx=p[0]-o[0],dy=p[1]-o[1];if(!moved&&Math.abs(dx)+Math.abs(dy)<5)return;moved=true;
+    var sc=scaleOf(view.z);view.cx-=dx/sc;view.cy-=dy/sc;ptr.set(e.pointerId,p);changed()}
+  else if(ptr.size===2){ptr.set(e.pointerId,p);var a=Array.from(ptr.values()),d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);
+    if(pinchD>0&&d>0)zoomAt((a[0][0]+a[1][0])/2,(a[0][1]+a[1][1])/2,Math.log(d/pinchD)/Math.LN2);pinchD=d}
+});
+function up(e){if(!ptr.has(e.pointerId))return;var p=pos(e),single=ptr.size===1;ptr.delete(e.pointerId);pinchD=0;
+  if(single&&!moved&&e.type==='pointerup'&&Date.now()-downT<700&&LY){var ll=toLL(p[0],p[1]);setPin(ll[0],ll[1],false)}}
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+cv.addEventListener('wheel',function(e){e.preventDefault();var p=pos(e);zoomAt(p[0],p[1],-e.deltaY*(e.deltaMode?0.08:0.0025))},{passive:false});
+cv.addEventListener('keydown',function(e){var sc=scaleOf(view.z),s=60/sc,k=e.key;
+  if(k==='ArrowLeft')view.cx-=s;else if(k==='ArrowRight')view.cx+=s;else if(k==='ArrowUp')view.cy-=s;else if(k==='ArrowDown')view.cy+=s;
+  else if(k==='+'||k==='=')return e.preventDefault(),zoomAt(W/2,H/2,0.5);else if(k==='-'||k==='_')return e.preventDefault(),zoomAt(W/2,H/2,-0.5);
+  else if(k==='Enter'&&LY){var ll=toLL(W/2,H/2);return setPin(ll[0],ll[1],false)}else return;
+  e.preventDefault();changed()});
+$('zin').addEventListener('click',function(){zoomAt(W/2,H/2,0.75)});
+$('zout').addEventListener('click',function(){zoomAt(W/2,H/2,-0.75)});
+$('zhome').addEventListener('click',function(){fitUtah();changed()});
+['faults','sfr','liq','ls','legacy','quakes','grid'].forEach(function(k){var el=$('l-'+k);
+  el.addEventListener('change',function(){show[k]=el.checked;if(k==='grid'&&el.checked&&LY)buildGrid();render();save()})});
+$('minmag').addEventListener('change',function(){minMag=parseFloat(this.value);render();save()});
+$('find').addEventListener('submit',function(e){e.preventDefault();if(!LY)return;
+  var v=$('place').value.trim(),m=v.match(/^(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)$/),msg=$('findmsg');
+  if(m){var lat=parseFloat(m[1]),lon=parseFloat(m[2]);if(lon>0)lon=-lon;
+    if(lat<UT.s||lat>UT.n||lon<UT.w||lon>UT.e){msg.textContent='Those coordinates are outside Utah. Use latitude first, then longitude.';return}
+    view.cx=mx(lon);view.cy=my(lat);view.z=Math.max(view.z,12);msg.textContent='Checked '+lat.toFixed(4)+', '+lon.toFixed(4)+'.';setPin(lon,lat,false);changed();return}
+  var q=v.toLowerCase().replace(/\s+county$/,''),hit=null,all=LY.muniSorted.concat(LY.counties),i;
+  for(i=0;i<all.length&&!hit;i++)if(all[i].p.name.toLowerCase()===q)hit=all[i];
+  for(i=0;i<all.length&&!hit&&q.length>1;i++)if(all[i].p.name.toLowerCase().indexOf(q)===0)hit=all[i];
+  if(!hit){msg.textContent=v?'No Utah city or county matches "'+v+'". Try another spelling or paste coordinates.':'Type a city, a county, or coordinates.';return}
+  var dx=hit.x1-hit.x0,dy=hit.y1-hit.y0;view.cx=(hit.x0+hit.x1)/2;view.cy=(hit.y0+hit.y1)/2;
+  view.z=Math.min(13,Math.log(Math.min(W/dx,H/dy)*0.8/256)/Math.LN2);msg.textContent='Showing '+hit.p.name+(hit.p.pop===undefined?' County':'')+'. Click the map to check a spot.';changed()});
+
+function save(){try{localStorage.setItem('utah-hazard',JSON.stringify({show:show,minMag:minMag,pin:isExample?null:pin}))}catch(e){}}
+function restore(){try{var s=JSON.parse(localStorage.getItem('utah-hazard')||'null');if(!s)return null;
+  for(var k in show)if(typeof s.show[k]==='boolean'){show[k]=s.show[k];$('l-'+k).checked=show[k]}
+  if(s.minMag){minMag=s.minMag;$('minmag').value=String(minMag)}return s.pin}catch(e){return null}}
+
+/* ---------- boot ---------- */
+function boot(d){
+  var L={};
+  L.faults=decode(d.faults);L.sfr=decode(d.sfr);L.liq=decode(d.liq);L.ls=decode(d.ls);L.legacy=decode(d.legacy);
+  L.counties=decode(d.counties);L.muni=decode(d.muni);L.lakes=decode(d.lakes);L.roads=decode(d.roads);L.quakes=decode(d.quakes,true);
+  L.faults.forEach(function(f){f.young=f.p.age==='<150'||f.p.age==='<15,000'||f.p.age==='<130,000'});
+  L.faultNew=L.faults.filter(function(f){return f.p.age==='<150'||f.p.age==='<15,000'});
+  L.faultMid=L.faults.filter(function(f){return f.p.age==='<130,000'});
+  L.faultOld=L.faults.filter(function(f){return !f.young});
+  L.liqReg=[[],[],[],[],[]];L.liqDet=[[],[],[],[],[]];L.liq.forEach(function(f){f.rank=LIQ_RANK[f.p.cls];f.detail=f.p.src==='detail';(f.detail?L.liqDet:L.liqReg)[f.rank].push(f)});
+  L.ls.forEach(function(f){f.kind='ls'});L.legacy.forEach(function(f){f.kind='legacy'});
+  L.lsAct=L.ls.filter(function(f){return f.p.activity==='Active/Historical'});L.lsDorm=L.ls.filter(function(f){return f.p.activity!=='Active/Historical'});
+  L.legacyHist=L.legacy.filter(function(f){return f.p.hist});L.legacyOld=L.legacy.filter(function(f){return !f.p.hist});
+  L.slides=L.ls.concat(L.legacy);
+  L.quakes.sort(function(a,b){return a.p.mag-b.p.mag});
+  L.muniSorted=L.muni.slice().sort(function(a,b){return b.p.pop-a.p.pop});
+  L.ixFaults=index(L.faults,0.05);L.ixSfr=index(L.sfr,0.05);L.ixLiq=index(L.liq,0.05);L.ixSlides=index(L.slides,0.05);L.ixQuakes=index(L.quakes,0.25);
+  LY=L;
+  var names={};L.muni.forEach(function(m){names[m.p.name]=1});L.counties.forEach(function(k){names[k.p.name+' County']=1});
+  $('places').innerHTML=Object.keys(names).sort().map(function(n){return '<option value="'+esc(n)+'">'}).join('');
+  $('fetched').textContent='Data downloaded '+new Date(d.meta.fetched).toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'})+'. '+L.faults.length.toLocaleString()+' fault segments, '+L.liq.length.toLocaleString()+' liquefaction areas, '+L.slides.length.toLocaleString()+' landslides, '+L.quakes.length.toLocaleString()+' earthquakes.';
+  $('veil').hidden=true;
+  var saved=restore();
+  if(saved&&typeof saved.lon==='number')setPin(saved.lon,saved.lat,false);else setPin(-111.891,40.7608,true);
+  if(show.grid)buildGrid();
+  render();
+}
+readTheme();resize();fitUtah();
+new ResizeObserver(function(){var z=drawn;resize();if(!z)fitUtah();lastMs=0;render()}).observe(cv);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(){readTheme();render()});
+new MutationObserver(function(){readTheme();render()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){render()});
+fetch('data.json').then(function(r){if(!r.ok)throw new Error(r.status);return r.json()}).then(boot).catch(function(e){
+  $('veil').textContent='The hazard data did not load. Reload the page to try again.';$('site').innerHTML='<p class="where">No data</p>';if(window.console)console.error(e)});
+window.__hazard={assess:function(lon,lat,fast){return LY?assess(lon,lat,fast):null}};
+})();
+</script>
+
+</body>
+</html>
